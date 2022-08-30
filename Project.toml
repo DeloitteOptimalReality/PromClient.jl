@@ -1,0 +1,4 @@
+name = "PromClient"
+uuid = "880e31e2-b695-45be-a28d-96ac068cb1ee"
+authors = ["Hansang Ye <ye.hansang@gmail.com>"]
+version = "0.1.0"
