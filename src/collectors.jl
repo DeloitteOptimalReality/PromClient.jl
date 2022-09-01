@@ -6,10 +6,8 @@ const DEFAULT_COLLECTOR = PromCollector("DEFAULT")
 
 """ Adds the given metric to a given collector. uses the DEFAULT_COLLECTOR if non given"""
 function add_metric_to_collector!(p::PromMetric, collector=DEFAULT_COLLECTOR)
-    for c in collector
-        if c.name == p.name
-            @error("Duplicate prom metrics with name $(c.name) have been added! Logging may be incorrect!")
-        end
+    if haskey(collector.metrics, p.name)
+        @error("Duplicate prom metrics with name $(p.name) have been added! Logging may be incorrect!")
     end
-    push!(collector, p)
+    collector.metrics[p.name] = p
 end

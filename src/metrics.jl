@@ -1,3 +1,14 @@
+"""
+    _update_timestamp(pm::Prometric, label_key_val::Dict{Set{Pair{String, String}},VT})
+
+Updates the timestamp for a key value pair if pm.log_timestamp is true.
+"""
+function _update_timestamp(pm::PromMetric, label_key_val::Set{Pair{String, String}})
+    if pm.log_timestamp
+        pm.label_timestamp[label_key_val] = datetime2epoch(Dates.now())
+    end
+end
+
 
 """ 
     _get_label_key_val(pm::PromMetric, label_vals::Vector{String})
@@ -38,10 +49,11 @@ function inc(pm::PromMetric, label_vals::Vector{String}, val::Number=1)
     # does no validation of the sign of the number, up to user to make sure you don't pass in a negative
     _lkv = _get_label_key_val(pm, label_vals)
     try
-        lock(pm._lock)
+        lock(pm._lk)
         pm.label_data[_lkv] = get(pm.label_data, _lkv, 0) + val
+		_update_timestamp(pm, _lkv)
     finally
-        unlock(pm._lock)
+        unlock(pm._lk)
     end
 end
 function inc(pm::HistogramMetric, label_vals, val)
@@ -75,12 +87,13 @@ end
 
 """ Sets the label for the metric to some value. Should only be used on Gauges."""
 function set(pm::PromMetric, label_vals::Vector{String}, val::Number)
-    _label_key_val = _get_label_key_val(pm, label_vals)
+    _lkv = _get_label_key_val(pm, label_vals)
     try
-        lock(pm._lock)
-        pm.label_data[_label_key_val] = val
+        lock(pm._lk)
+        pm.label_data[_lkv] = val
+        _update_timestamp(pm, _lkv)
     finally
-        unlock(pm._lock)
+        unlock(pm._lk)
     end
 end
 function set(pm::PromMetric, val::Number=1)
@@ -129,15 +142,15 @@ Observation without label is only allowed if the metric itself was created witho
 function observe(pm::HistogramMetric, label_vals::Vector{String}, val::Number)
     _lkb = _get_label_key_val(pm, label_vals)
     try
-        lock(pm._lock)
+        lock(pm._lk)
         bucket_increments = [val <= b for b in pm.buckets]
         # create bucket values of zeros if not exist
         pm.label_counts[_lkb] = get(pm.label_counts, _lkb, zeros(length(pm.buckets))
                                     ) .+ bucket_increments
         pm.label_sum[_lkb] = get(pm.label_sum, _lkb, 0) + val
-        
+        _update_timestamp(pm, _lkb)
     finally
-        unlock(pm._lock)
+        unlock(pm._lk)
     end
 end
 function observe(pm::HistogramMetric, val::Number)

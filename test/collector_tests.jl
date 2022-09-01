@@ -9,7 +9,7 @@ end
 end
 
 @testset "Collector Tests" begin
-    count("\n", generate_latest_prom_metrics()) == 21
-    count("testCounter{", generate_latest_prom_metrics()) == 4
-    length(PromClient.DEFAULT_COLLECTOR) == count("TYPE", generate_latest_prom_metrics())  # 4
+    @test count("\n", PromClient.generate_latest_collector_metrics()) == 16
+    @test count("test:Counter{", PromClient.generate_latest_collector_metrics()) == 4
+    @test length(PromClient.DEFAULT_COLLECTOR.metrics) == count("TYPE", PromClient.generate_latest_collector_metrics())  # 4
 end

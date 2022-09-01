@@ -24,16 +24,18 @@ julia> b[Set(["c"=>"d","a"=>"b"])] == b[Set(["a"=>"b","c"=>"d"])]  # true
 ````
 """
 struct CounterMetric{VT <: Number, LT<: Base.AbstractLock} <: PromMetric
-    name::String                                        # Required for TYPE string
-    desc::String                                        # Description for HELP string, can be blank str
-    label_keys::Vector{String}                          # Ordered List of Possible Keys for use in labels
-    label_data::Dict{Set{Pair{String, String}},VT}      # Dict that stores metric data per label
-    _vtype::Type                                        # for storing the value type, useful for checking
-    _lock::LT                                           # lock
+    name::String                                            # Required for TYPE string
+    desc::String                                            # Description for HELP string, can be blank str
+    label_keys::Vector{String}                              # Ordered List of Possible Keys for use in labels
+    label_data::Dict{Set{Pair{String, String}},VT}          # Dict that stores metric data per label
+    label_timestamp::Dict{Set{Pair{String, String}},Int}    # Dict that stores timestamp data
+    log_timestamp::Bool                                     # Field to check if the label_timestamp field needs to be updated
+    _vtype::Type                                            # for storing the value type, useful for checking
+    _lk::LT                                                 # lock
 end
-CounterMetric(n; vtype::Type=Int) = CounterMetric(n, "", Vector{String}(), Dict{Set{Pair{String, String}}, vtype}(), vtype, Threads.ReentrantLock())
-CounterMetric(n, d; vtype::Type=Int) = CounterMetric(n, d, Vector{String}(), Dict{Set{Pair{String, String}}, vtype}(), vtype, Threads.ReentrantLock())
-CounterMetric(n, d, labels::Vector{String}; vtype::Type=Int) = CounterMetric(n, d, labels, Dict{Set{Pair{String, String}}, vtype}(), vtype, Threads.ReentrantLock())
+CounterMetric(n, t; vtype::Type=Int) = CounterMetric(n, "", Vector{String}(), Dict{Set{Pair{String, String}}, vtype}(), Dict{Set{Pair{String, String}}, Int}(), t, vtype, Threads.ReentrantLock())
+CounterMetric(n, d, t; vtype::Type=Int) = CounterMetric(n, d, Vector{String}(), Dict{Set{Pair{String, String}}, vtype}(), Dict{Set{Pair{String, String}}, Int}(), t, vtype, Threads.ReentrantLock())
+CounterMetric(n, d, labels::Vector{String}, t; vtype::Type=Int) = CounterMetric(n, d, labels, Dict{Set{Pair{String, String}}, vtype}(), Dict{Set{Pair{String, String}}, Int}(), t, vtype, Threads.ReentrantLock())
 
 """
     GaugeMetric
@@ -41,16 +43,18 @@ CounterMetric(n, d, labels::Vector{String}; vtype::Type=Int) = CounterMetric(n, 
 Struct to hold a prometheus gauge metrics. Functionally Same as Counter Metric, with added a dec function allowed
 """
 struct GaugeMetric{VT <: Number, LT<: Base.AbstractLock} <: PromMetric
-    name::String                                        # Required for TYPE string
-    desc::String                                        # Description for HELP string, can be blank str
-    label_keys::Vector{String}                          # List of Possible Keys for use in labels
-    label_data::Dict{Set{Pair{String, String}},VT}      # Dict that stores the metric data, per label
-    _vtype::Type                                        # for storing the value type, useful for checking
-    _lock::LT                                           # lock
+    name::String                                            # Required for TYPE string
+    desc::String                                            # Description for HELP string, can be blank str
+    label_keys::Vector{String}                              # List of Possible Keys for use in labels
+    label_data::Dict{Set{Pair{String, String}},VT}          # Dict that stores the metric data, per label
+    label_timestamp::Dict{Set{Pair{String, String}},Int}    # Dict that stores timestamp data
+    log_timestamp::Bool                                     # Field to check if the label_timestamp field needs to be updated
+    _vtype::Type                                            # for storing the value type, useful for checking
+    _lk::LT                                                 # lock
 end
-GaugeMetric(n; vtype::Type=Int) = GaugeMetric(n, "", Vector{String}(), Dict{Set{Pair{String, String}}, vtype}(), vtype, Threads.ReentrantLock())
-GaugeMetric(n, d; vtype::Type=Int) = GaugeMetric(n, d, Vector{String}(), Dict{Set{Pair{String, String}}, vtype}(), vtype, Threads.ReentrantLock())
-GaugeMetric(n, d, labels::Vector{String}; vtype::Type=Int) = GaugeMetric(n, d, labels, Dict{Set{Pair{String, String}}, vtype}(), vtype, Threads.ReentrantLock())
+GaugeMetric(n, t; vtype::Type=Int) = GaugeMetric(n, "", Vector{String}(), Dict{Set{Pair{String, String}}, vtype}(), Dict{Set{Pair{String, String}}, Int}(), t, vtype, Threads.ReentrantLock())
+GaugeMetric(n, d, t; vtype::Type=Int) = GaugeMetric(n, d, Vector{String}(), Dict{Set{Pair{String, String}}, vtype}(), Dict{Set{Pair{String, String}}, Int}(), t, vtype, Threads.ReentrantLock())
+GaugeMetric(n, d, labels::Vector{String}, t; vtype::Type=Int) = GaugeMetric(n, d, labels, Dict{Set{Pair{String, String}}, vtype}(), Dict{Set{Pair{String, String}}, Int}(), t, vtype, Threads.ReentrantLock())
 
 # Default bucket, must be float to include inf
 const DEFAULT_BUCKETS = (.005, .01, .025, .05, .075, .1, .25, .5, .75, 1.0, 2.5, 5.0, 7.5, 10.0, Inf)
@@ -85,10 +89,12 @@ struct HistogramMetric{VT <: Number, LT<: Base.AbstractLock} <: PromMetric
     label_counts::Dict{Set{Pair{String, String}}, Vector{VT}}   # label count against each label, vector with length = length of buckets
     label_sum::Dict{Set{Pair{String, String}}, VT}              # Sum of the value of the total observed, per label
     buckets::Tuple{Vararg{Float64}}                             # List of values to use as bucket
+    label_timestamp::Dict{Set{Pair{String, String}},Int}        # Dict that stores timestamp data
+    log_timestamp::Bool                                         # Field to check if the label_timestamp field needs to be updated
     _vtype::Type                                                # value type
-    _lock::LT                                                   # lock
+    _lk::LT                                                     # lock
 end
-function HistogramMetric(n, d, labels::Vector{String}; vtype::Type=Float64, buckets=DEFAULT_BUCKETS)
+function HistogramMetric(n, d, labels::Vector{String}, t; vtype::Type=Float64, buckets=DEFAULT_BUCKETS)
     if "le" in labels
         throw(KeyError("$n Histogram Metric: le label is reserved and cannot be used as label"))
     end
@@ -100,22 +106,29 @@ function HistogramMetric(n, d, labels::Vector{String}; vtype::Type=Float64, buck
         throw(ArgumentError("$n Histogram Metric: Last bucket must be Inf, please confirm bucket config"))
     end
 
-    HistogramMetric(n,
-                    d,
-                    labels,  # label_keys
-                    Dict{Set{Pair{String, String}}, Vector{vtype}}(),  # label_counts
-                    Dict{Set{Pair{String, String}}, vtype}(),  # label_sum
-                    buckets,
-                    vtype,
-                    Threads.ReentrantLock())
+    return HistogramMetric(n,
+                           d,
+                           labels,  # label_keys
+                           Dict{Set{Pair{String, String}}, Vector{vtype}}(),  # label_counts
+                           Dict{Set{Pair{String, String}}, vtype}(),  # label_sum
+                           buckets,
+                           Dict{Set{Pair{String, String}}, Int}(),
+                           t,
+                           vtype,
+                           Threads.ReentrantLock())
 end
-function HistogramMetric(n; vtype::Type=Float64, buckets=DEFAULT_BUCKETS) 
-    HistogramMetric(n, 
-                    "",
-                    Vector{String}();
-                    buckets=buckets,
-                    vtype=vtype)
-end
+HistogramMetric(n, t; vtype::Type=Float64) = HistogramMetric(n, 
+                                                             "",
+                                                             Vector{String}(),
+                                                             t;
+                                                             vtype=vtype)
+HistogramMetric(n, t, buckets; vtype::Type=Float64) = HistogramMetric(n, 
+                                                             "",
+                                                             Vector{String}(),
+                                                             t;
+                                                             vtype=vtype,
+                                                             buckets=buckets)
+
 # helpers to print the struct type name
 typename(::Type{T}) where {T} = (isempty(T.parameters) ? T : T.name.wrapper)
 

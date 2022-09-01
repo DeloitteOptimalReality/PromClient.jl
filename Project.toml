@@ -2,3 +2,6 @@ name = "PromClient"
 uuid = "880e31e2-b695-45be-a28d-96ac068cb1ee"
 authors = ["Hansang Ye <ye.hansang@gmail.com>"]
 version = "0.1.0"
+
+[deps]
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"

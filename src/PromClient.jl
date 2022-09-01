@@ -1,9 +1,12 @@
 module PromClient
 
+using Dates
+
 include("types.jl")
 include("metrics.jl")
 include("exposition.jl")
 include("collectors.jl")
+include("utilities.jl")
 
 # export PromMetric  # abstract class, do we need to export?
 export CounterMetric, GaugeMetric, HistogramMetric

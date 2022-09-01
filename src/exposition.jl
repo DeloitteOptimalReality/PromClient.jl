@@ -3,9 +3,8 @@
 
 goes through the collector and formats data in all added metrics
 """
-# function generate_latest_collector_metrics(collector::Vector{PromMetric}=DEFAULT_COLLECTOR)
 function generate_latest_collector_metrics(collector::PromCollector=DEFAULT_COLLECTOR)
-    latest_str = [collect(m) for m in collector.metrics]
+    latest_str = [collect(m) for (_, m) in collector.metrics]
     return join(latest_str)
 end
 
@@ -39,7 +38,7 @@ function collect(pm::GaugeMetric)
     return collect(pm, "gauge")
 end
 function collect(pm::Union{CounterMetric, GaugeMetric}, mtype::String)
-        latest_str = ["$(_prometheus_format_label(pm.name, l,v)) \n" for (l,v) in pm.label_data]
+        latest_str = ["$(_prometheus_format_label(pm, l, v)) \n" for (l,v) in pm.label_data]
         return """
         # HELP $(pm.name) $(pm.desc)
         # TYPE $(pm.name) $mtype
@@ -66,7 +65,11 @@ in the format of metric_name{labels=label_value}value
 # Examples
 
 """
-function _prometheus_format_label(metric_name::String, label_pair::Set{Pair{String, String}}, metric_val::Number)
+function _prometheus_format_label(pm::Union{CounterMetric, GaugeMetric}, label_pair::Set{Pair{String, String}}, metric_val::Number)
     _prom_labels = join(["$lk=\"$lv\"" for (lk,lv) in label_pair], ",")
-    return "$metric_name{$_prom_labels} $(string(metric_val))"
+    output = "$(pm.name){$_prom_labels} $(string(metric_val))"
+    if pm.log_timestamp
+        output = output * " $(pm.label_timestamp[label_pair])"
+    end
+    return output
 end

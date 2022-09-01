@@ -1,8 +1,7 @@
 
 @testset "Counter Tests" begin
-    tp = CounterMetric("test:Counter", "Int Counter test", ["a", "b", "c"])
-    # TODO Fix adding to the collector
-    # add_metric_to_collector!(tp)
+    tp = CounterMetric("test:Counter", "Int Counter test", ["a", "b", "c"], true)
+    add_metric_to_collector!(tp)
     
     tp_k1 = PromClient._get_label_key_val(tp, ["t1", "t2", "t3"])
     tp_k1 == Set([  "b" => "t2", "a" => "t1", "c" => "t3"])
@@ -36,7 +35,7 @@
 end
 
 @testset "Float/Value type Tests" begin
-    tp_float = CounterMetric("Counter:Float", "32f test", ["host", "podname", "tid"]; vtype=Float32)
+    tp_float = CounterMetric("Counter:Float", "32f test", ["host", "podname", "tid"], true; vtype=Float32)
     lfkey1 = ["localhost", "t2", string(Threads.threadid())]
     lfloat1 = PromClient._get_label_key_val(tp_float, lfkey1)
     # TODO Fix adding to the collector
@@ -57,7 +56,7 @@ end
 end
 
 @testset "Gauge Tests" begin
-    gm = GaugeMetric("gauge:test", "tests for gauge"; vtype=Float64)
+    gm = GaugeMetric("gauge:test", "tests for gauge", false; vtype=Float64)
     # TODO Fix adding to the collector
     # add_metric_to_collector!(gm)
     inc(gm)
@@ -75,10 +74,10 @@ end
 @testset "Histogram Metrics" begin
     
     # buckets must be in order, and end with Inf
-    @test_throws ArgumentError failhist = HistogramMetric("testhist"; buckets=(0.4,0.1))
-    @test_throws ArgumentError failhist = HistogramMetric("testhist"; buckets=(0.1,0.4))
+    @test_throws ArgumentError failhist = HistogramMetric("testhist", false, (0.4,0.1))
+    @test_throws ArgumentError failhist = HistogramMetric("testhist", false, (0.1,0.4))
 
-    hist = HistogramMetric("testhist")
+    hist = HistogramMetric("testhist", false)
     @test hist.buckets[end] == Inf
 
     _lkv0 = PromClient._get_label_key_val(hist, String[])
@@ -100,7 +99,7 @@ end
     @test_throws ErrorException set(hist, [], 1)
     @test_throws ErrorException dec(hist, [], 1)
 
-    hist_labels = HistogramMetric("h_labs", "test histogram with labels", ["lab1", "lab2"]; buckets=(0.1,1.0,10.0,Inf))
+    hist_labels = HistogramMetric("h_labs", "test histogram with labels", ["lab1", "lab2"], false; buckets=(0.1,1.0,10.0,Inf))
     test_observations = [0.05, 0.5, 5, 11]
     for _o in test_observations
         observe(hist_labels, ["a","b"], _o)
@@ -130,12 +129,16 @@ end
 end
 
 @testset "Formatting Tests" begin
-    lab_pai_1 = Set(["host" => "localhost","tid" => "1","podname" => "t2"])
-    @test PromClient._prometheus_format_label("testmetric",lab_pai_1, 1.0) == "testmetric{host=\"localhost\",tid=\"1\",podname=\"t2\"} 1.0"
+    test_metrics = CounterMetric("testmetric", "Metric Format test", ["host", "tid", "podname"], true)
+    add_metric_to_collector!(test_metrics)
+    test_metric_data = ["localhost","1","t2"]
+    set(test_metrics, test_metric_data, 1.0)
+    _kv = PromClient._get_label_key_val(test_metrics, test_metric_data)
+    @test PromClient._prometheus_format_label(test_metrics, _kv, 1.0) == "testmetric{host=\"localhost\",tid=\"1\",podname=\"t2\"} 1.0 $(test_metrics.label_timestamp[_kv])"
     
-    pm_format = GaugeMetric("formatter_test", "format test", ["host"])  # when testing formatting, using multiple labels might be jumbled. To fix later
+    pm_format = GaugeMetric("formatter_test", "format test", ["host"], false)  # when testing formatting, using multiple labels might be jumbled. To fix later
     # TODO Fix adding to the collector
-    # add_metric_to_collector!(pm_format)
+    add_metric_to_collector!(pm_format)
     inc(pm_format, ["localhost"])
     @test PromClient.collect(pm_format) == "# HELP formatter_test format test\n# TYPE formatter_test gauge\nformatter_test{host=\"localhost\"} 1 \n\n"
     dec(pm_format, ["localhost2"])
@@ -148,7 +151,7 @@ end
     """
     @test PromClient.collect(pm_format) == formatted_string
 
-    # FOR DISCUSSION - do we keep these in tests? Not part of prom spec
+    # # FOR DISCUSSION - do we keep these in tests? Not part of prom spec
     # pretty_format = """
     # format test (localhost): 1 
     # format test (localhost2): -1 
