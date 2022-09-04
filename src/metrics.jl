@@ -65,6 +65,10 @@ function set(pm::PromMetric, val::Number=1)
     set(pm, String[], val)  # blank labels, this is discouraged
 end
 
+""" Sets a gauge to the current unixtime, in seconds """
+function set_to_current_time(pm::GaugeMetric, label_vals::Vector{String})
+    set(pm, label_vals, floor(Int, time()))
+end
 
 """ Resets label value for the metric to 0."""
 function reset_metric(pm::PromMetric, label_vals::Vector{String})
@@ -72,4 +76,19 @@ function reset_metric(pm::PromMetric, label_vals::Vector{String})
 end
 function reset_metric(pm::PromMetric)
     reset_metric(pm, String[])  # blank labels, this is discouraged
+end
+
+""" Observe a value for histograms & Summaries """
+function observe(pm::HistogramMetric, label_vals::Vector{String}, val::Number)
+    # Todo
+end
+function observe(pm::SummaryMetric, label_vals::Vector{String}, val::Number)
+    # Todo
+end
+
+
+# histogram bucket setting
+function linear(start, width, count) 
+end
+function exponential(start, factor, count)
 end

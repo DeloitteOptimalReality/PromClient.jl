@@ -2,7 +2,7 @@
 # Custom collector struct/methods for compliance with Prometheus library
 # at the moment, only the default collector is provided (as a dict), This may require re-implementation
 
-const DEFAULT_COLLECTOR = PromMetric[]
+const DEFAULT_COLLECTOR = PromCollector("DEFAULT")
 
 """ Adds the given metric to a given collector. uses the DEFAULT_COLLECTOR if non given"""
 function add_metric_to_collector!(p::PromMetric, collector=DEFAULT_COLLECTOR)
