@@ -5,8 +5,10 @@ include("metrics.jl")
 include("exposition.jl")
 include("collectors.jl")
 
-export CounterMetric, GaugeMetric, PromMetric
-export inc, dec, set, reset_metric
+# export PromMetric  # abstract class, do we need to export?
+export CounterMetric, GaugeMetric, HistogramMetric
+export inc, dec, set, reset_metric, observe
+export get_bucket_linear, get_bucket_exponential
 export generate_latest_prom_metrics
 export add_metric_to_collector!, DEFAULT_COLLECTOR
 

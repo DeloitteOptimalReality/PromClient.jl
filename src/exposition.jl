@@ -38,13 +38,19 @@ end
 function collect(pm::GaugeMetric)
     return collect(pm, "gauge")
 end
-function collect(pm::PromMetric, mtype::String)
+function collect(pm::Union{CounterMetric, GaugeMetric}, mtype::String)
         latest_str = ["$(_prometheus_format_label(pm.name, l,v)) \n" for (l,v) in pm.label_data]
         return """
-        # HELP $(pm.name) $(pm.descr)
+        # HELP $(pm.name) $(pm.desc)
         # TYPE $(pm.name) $mtype
         $(join(latest_str))
         """
+end
+function collect(pm::HistogramMetric)
+    # TODO
+    # must add in the le buckets per the bucket names - not specified in the label key itself...
+    # add in counter/max
+    # add in inf...but i think that one is automatic within Julia's comparison
 end
 
 """

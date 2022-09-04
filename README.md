@@ -1,23 +1,35 @@
 # PromClient.jl
 Lightweight Julia Implementation of a Prometheus Client for Julia services. 
 
-At the moment it only supports:
+At the moment it supports:
 - Gauge
 - Counter
+- Histogram
+
+## Not yet supported Metric types:
+- Summary 
 
 # TODOs before we publish initial version
 - Histogram
-- Stop users from breaking labels
-- Default prom collector
+    - Setup struct with hist fields
+    - Functions to Configure buckets, incl. default bucket
+    - Functions to 'collect' data.
+    - Class other functions, disallow prom metric from being called on histograms.
+- Enforce correct number of labels in all setter functions
+- Fix Default prom collector
+    - Change to Collector Struct/class.
+    - Constructor of prom metrics to add to default registry.
+
+# Sach to do
 - optional timestamps after metrics
 
-Not yet supported Metric types:
-- Summary 
+## To Do's in future (not yet supported)
+- Default System Metrics (CPU time, GC time, memory use etc.)
+- Decorators for code timers directly into metrics
 
 For further on metric types see https://prometheus.io/docs/concepts/metric_types/
 
 # Quickstart
-git remote add upstream https://github.com/spcogg/PromClient.jl.git
 See Tests for more detailed examples
 
 ```
