@@ -29,7 +29,7 @@ struct CounterMetric{VT <: Number, LT<: Base.AbstractLock} <: PromMetric
     label_keys::Vector{String}                          # Ordered List of Possible Keys for use in labels
     label_data::Dict{Set{Pair{String, String}},VT}      # Dict that stores metric data per label
     _vtype::Type                                        # for storing the value type, useful for checking
-    _lk::LT                                             # lock
+    _lock::LT                                           # lock
 end
 CounterMetric(n; vtype::Type=Int) = CounterMetric(n, "", Vector{String}(), Dict{Set{Pair{String, String}}, vtype}(), vtype, Threads.ReentrantLock())
 CounterMetric(n, d; vtype::Type=Int) = CounterMetric(n, d, Vector{String}(), Dict{Set{Pair{String, String}}, vtype}(), vtype, Threads.ReentrantLock())
@@ -46,7 +46,7 @@ struct GaugeMetric{VT <: Number, LT<: Base.AbstractLock} <: PromMetric
     label_keys::Vector{String}                          # List of Possible Keys for use in labels
     label_data::Dict{Set{Pair{String, String}},VT}      # Dict that stores the metric data, per label
     _vtype::Type                                        # for storing the value type, useful for checking
-    _lk::LT                                             # lock
+    _lock::LT                                           # lock
 end
 GaugeMetric(n; vtype::Type=Int) = GaugeMetric(n, "", Vector{String}(), Dict{Set{Pair{String, String}}, vtype}(), vtype, Threads.ReentrantLock())
 GaugeMetric(n, d; vtype::Type=Int) = GaugeMetric(n, d, Vector{String}(), Dict{Set{Pair{String, String}}, vtype}(), vtype, Threads.ReentrantLock())
@@ -86,9 +86,9 @@ struct HistogramMetric{VT <: Number, LT<: Base.AbstractLock} <: PromMetric
     label_sum::Dict{Set{Pair{String, String}}, VT}              # Sum of the value of the total observed, per label
     buckets::Tuple{Vararg{Float64}}                             # List of values to use as bucket
     _vtype::Type                                                # value type
-    _lk::LT                                                     # lock
+    _lock::LT                                                   # lock
 end
-function HistogramMetric(n, d, labels::Vector{String}; vtype::Type=Float, buckets=DEFAULT_BUCKETS)
+function HistogramMetric(n, d, labels::Vector{String}; vtype::Type=Float64, buckets=DEFAULT_BUCKETS)
     if "le" in labels
         throw(KeyError("$n Histogram Metric: le label is reserved and cannot be used as label"))
     end
@@ -97,23 +97,25 @@ function HistogramMetric(n, d, labels::Vector{String}; vtype::Type=Float, bucket
     elseif !issorted(buckets)
         throw(ArgumentError("$n Histogram Metric: Buckets $buckets are not in sorted order!"))
     elseif buckets[end] != Inf
-        throw(ArgumentError("$n Histogram Metric: Last bucket must be inf, please confirm bucket config"))
+        throw(ArgumentError("$n Histogram Metric: Last bucket must be Inf, please confirm bucket config"))
     end
 
-    return HistogramMetric(n,
-                           d,
-                           labels,  # label_keys
-                           Dict{Set{Pair{String, String}}, Vector{vtype}}(),  # label_counts
-                           Dict{Set{Pair{String, String}}, vtype}(),  # label_sum
-                           buckets,
-                           vtype,
-                           Threads.ReentrantLock())
+    HistogramMetric(n,
+                    d,
+                    labels,  # label_keys
+                    Dict{Set{Pair{String, String}}, Vector{vtype}}(),  # label_counts
+                    Dict{Set{Pair{String, String}}, vtype}(),  # label_sum
+                    buckets,
+                    vtype,
+                    Threads.ReentrantLock())
 end
-HistogramMetric(n; vtype::Type=Float64) = HistogramMetric(n, 
-                                                      "",
-                                                      Vector{String}();
-                                                      vtype=vtype)
-
+function HistogramMetric(n; vtype::Type=Float64, buckets=DEFAULT_BUCKETS) 
+    HistogramMetric(n, 
+                    "",
+                    Vector{String}();
+                    buckets=buckets,
+                    vtype=vtype)
+end
 # helpers to print the struct type name
 typename(::Type{T}) where {T} = (isempty(T.parameters) ? T : T.name.wrapper)
 

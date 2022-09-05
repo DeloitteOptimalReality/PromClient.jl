@@ -5,23 +5,30 @@ At the moment it supports:
 - Gauge
 - Counter
 - Histogram
-
 ## Not yet supported Metric types:
 - Summary 
 
-# TODOs before we publish initial version
-- Histogram
+# Done List (Remove before publishing)
+- Histograms:
     - Setup struct with hist fields
     - Functions to Configure buckets, incl. default bucket
-    - Functions to 'collect' data.
-    - Class other functions, disallow prom metric from being called on histograms.
+    - disallow prom metric from being called on histograms.
 - Enforce correct number of labels in all setter functions
+
+# TODOs before we publish initial version
+- Exposition Functions to 'collect' data from Histograms
 - Fix Default prom collector
     - Change to Collector Struct/class.
     - Constructor of prom metrics to add to default registry.
 
 # Sach to do
 - optional timestamps after metrics
+- fix remaining test
+
+# interface changes from PrometheusClient (Internal reference only - do not publish)
+- change in function name: `reset_metric` => `reset_metric!`
+- change in function name: `_prometheus_format` => `collect`, for a single metric. This was not previous exported anyway
+- `PromCollector` is now a Struct, instead of vector of Metrics
 
 ## To Do's in future (not yet supported)
 - Default System Metrics (CPU time, GC time, memory use etc.)

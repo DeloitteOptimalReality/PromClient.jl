@@ -1,7 +1,8 @@
 
 @testset "Counter Tests" begin
     tp = CounterMetric("test:Counter", "Int Counter test", ["a", "b", "c"])
-    add_metric_to_collector!(tp)
+    # TODO Fix adding to the collector
+    # add_metric_to_collector!(tp)
     
     tp_k1 = PromClient._get_label_key_val(tp, ["t1", "t2", "t3"])
     tp_k1 == Set([  "b" => "t2", "a" => "t1", "c" => "t3"])
@@ -9,7 +10,7 @@
     tp.label_data[tp_k1] == 1
     @test_throws MethodError dec(tp, ["t1", "t2", "t3"])  # not defined for counter
     
-    reset_metric(tp, ["t1", "t2", "t3"])
+    reset_metric!(tp, ["t1", "t2", "t3"])
     @test tp.label_data[tp_k1] == 0
     
     Threads.@threads for i in 1:10000
@@ -18,7 +19,7 @@
     @test tp.label_data[tp_k1] == 10000
     
     Threads.@threads for label_val in ["t1", "t2", "t3"]
-        reset_metric(tp, [label_val, label_val, label_val])
+        reset_metric!(tp, [label_val, label_val, label_val])
         for i in 1:10000
             inc(tp,  [label_val, label_val, label_val], i);
         end
@@ -38,7 +39,8 @@ end
     tp_float = CounterMetric("Counter:Float", "32f test", ["host", "podname", "tid"]; vtype=Float32)
     lfkey1 = ["localhost", "t2", string(Threads.threadid())]
     lfloat1 = PromClient._get_label_key_val(tp_float, lfkey1)
-    add_metric_to_collector!(tp_float)
+    # TODO Fix adding to the collector
+    # add_metric_to_collector!(tp_float)
 
     inc(tp_float, lfkey1)
     @test tp_float.label_data[lfloat1] == 1.0
@@ -50,13 +52,14 @@ end
     inc(tp_float,lfkey2)
     @test tp_float.label_data[lf_label2] == 1.0
     @test length(tp_float.label_data) == 2
-    reset_metric(tp_float, lfkey2)
+    reset_metric!(tp_float, lfkey2)
     @test tp_float.label_data[lf_label2] == 0.0
 end
 
 @testset "Gauge Tests" begin
     gm = GaugeMetric("gauge:test", "tests for gauge"; vtype=Float64)
-    add_metric_to_collector!(gm)
+    # TODO Fix adding to the collector
+    # add_metric_to_collector!(gm)
     inc(gm)
     @test gm.label_data[Set()] == 1.0
     dec(gm)
@@ -64,20 +67,77 @@ end
     @test gm.label_data[Set()] == -5.0
     set(gm, 1.5)
     @test gm.label_data[Set()] == 1.5
-    reset_metric(gm)
+    reset_metric!(gm)
     @test gm.label_data[Set()] == 0.0
-    # print(PromClient._prometheus_format(gm))
+    # print(PromClient.collect(gm))
 end
 
+@testset "Histogram Metrics" begin
+    
+    # buckets must be in order, and end with Inf
+    @test_throws ArgumentError failhist = HistogramMetric("testhist"; buckets=(0.4,0.1))
+    @test_throws ArgumentError failhist = HistogramMetric("testhist"; buckets=(0.1,0.4))
+
+    hist = HistogramMetric("testhist")
+    @test hist.buckets[end] == Inf
+
+    _lkv0 = PromClient._get_label_key_val(hist, String[])
+    observe(hist, 0.01)
+    observe(hist, 0.4)
+    observe(hist, 3)
+    observe(hist, 999)
+
+    expected_counts = [3 <= b for b in hist.buckets] .+ [0.01 <= b for b in hist.buckets] .+ [0.4 <= b for b in hist.buckets] .+ [999 <= b for b in hist.buckets]
+
+    for (i, _v) in enumerate(hist.label_counts[_lkv0])
+        @test _v == expected_counts[i]
+    end
+    @test hist.label_sum[_lkv0] == 0.01 + 0.4 + 3 + 999
+
+    observe(hist, Inf)  # if this happens, average and other related calcs will break
+    @test hist.label_sum[_lkv0] == Inf
+    @test_throws ErrorException inc(hist, [], 1)
+    @test_throws ErrorException set(hist, [], 1)
+    @test_throws ErrorException dec(hist, [], 1)
+
+    hist_labels = HistogramMetric("h_labs", "test histogram with labels", ["lab1", "lab2"]; buckets=(0.1,1.0,10.0,Inf))
+    test_observations = [0.05, 0.5, 5, 11]
+    for _o in test_observations
+        observe(hist_labels, ["a","b"], _o)
+    end
+
+    _hlkv = PromClient._get_label_key_val(hist_labels, ["a","b"])
+    @test_throws ErrorException PromClient._get_label_key_val(hist_labels, ["a"])  # number of labels enforced now
+    # hist_labels.label_keys
+    @test hist_labels.label_counts[_hlkv] == [1.0, 2.0, 3.0, 4.0]
+    @test hist_labels.label_sum[_hlkv] == sum(test_observations)
+
+    test_labs2 = ["a", "c"]
+    test_obsr2 = [0.11, 0.75, 1, 5.5]
+    for _o in test_obsr2
+        observe(hist_labels, test_labs2, _o)
+    end
+    hist_labels.buckets
+    _hlkv2 = PromClient._get_label_key_val(hist_labels, test_labs2)
+    @test hist_labels.label_counts[_hlkv2] == [0, 3.0, 4.0, 4.0]
+    @test hist_labels.label_sum[_hlkv2] == sum(test_obsr2)
+
+    # bucket maker test
+    @test (1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, Inf) == get_bucket_linear(1,0.5,4)
+
+    # (1.0, 2.1435469250725863, 3.348369522101714, 4.59479341998814, Inf) == get_bucket_exponential(1,1.1,4)
+    @test all((1.0, 2.1435469250725863, 3.348369522101714, 4.59479341998814, Inf) .≈ get_bucket_exponential(1,1.1,4))
+end
 
 @testset "Formatting Tests" begin
     lab_pai_1 = Set(["host" => "localhost","tid" => "1","podname" => "t2"])
     @test PromClient._prometheus_format_label("testmetric",lab_pai_1, 1.0) == "testmetric{host=\"localhost\",tid=\"1\",podname=\"t2\"} 1.0"
     
     pm_format = GaugeMetric("formatter_test", "format test", ["host"])  # when testing formatting, using multiple labels might be jumbled. To fix later
-    add_metric_to_collector!(pm_format)
+    # TODO Fix adding to the collector
+    # add_metric_to_collector!(pm_format)
     inc(pm_format, ["localhost"])
-    @test PromClient._prometheus_format(pm_format) == "# HELP formatter_test format test\n# TYPE formatter_test gauge\nformatter_test{host=\"localhost\"} 1 \n\n"
+    @test PromClient.collect(pm_format) == "# HELP formatter_test format test\n# TYPE formatter_test gauge\nformatter_test{host=\"localhost\"} 1 \n\n"
     dec(pm_format, ["localhost2"])
     # example output format
     formatted_string = """# HELP formatter_test format test
@@ -86,18 +146,19 @@ end
     formatter_test{host=\"localhost2\"} -1 
     
     """
-    @test PromClient._prometheus_format(pm_format) == formatted_string
+    @test PromClient.collect(pm_format) == formatted_string
 
-    pretty_format = """
-    format test (localhost): 1 
-    format test (localhost2): -1 
+    # FOR DISCUSSION - do we keep these in tests? Not part of prom spec
+    # pretty_format = """
+    # format test (localhost): 1 
+    # format test (localhost2): -1 
 
-    """
-    @test PromClient._prometheus_pretty(pm_format) == pretty_format
-    @test PromClient.generate_pretty_prom_metrics([pm_format]) == pretty_format
+    # """
+    # @test PromClient._prometheus_pretty(pm_format) == pretty_format
+    # @test PromClient.generate_pretty_prom_metrics([pm_format]) == pretty_format
 
     # number of lines
-    @test count("\n", PromClient._prometheus_format(pm_format)) == 5
+    @test count("\n", PromClient.collect(pm_format)) == 5
 end
 
 # print(generate_latest())  # uncomment to check format

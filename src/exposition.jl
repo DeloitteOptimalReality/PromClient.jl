@@ -51,6 +51,9 @@ function collect(pm::HistogramMetric)
     # must add in the le buckets per the bucket names - not specified in the label key itself...
     # add in counter/max
     # add in inf...but i think that one is automatic within Julia's comparison
+        # also, for histo/summary, must insert the 'le' or 'quantile' -
+    # though this might be exposition only? don't need to consider here
+
 end
 
 """
